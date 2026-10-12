@@ -17,10 +17,13 @@ type rawCPUticks struct {
 	steal   uint64 // how much cpu steal by hypervisor on VM
 }
 
-func (t *rawCPUticks) Total() uint64 {
-	total := t.user + t.nice + t.system + t.idle + t.iowait + t.irq + t.softirq + t.steal
+type CPUCollector struct {
+	statPath string
+	prevTicks *rawCPUticks
+}
 
-	return total
+func (t *rawCPUticks) Total() uint64 {
+	return t.user + t.nice + t.system + t.idle + t.iowait + t.irq + t.softirq + t.steal
 }
 
 func (t *rawCPUticks) Idle() uint64 {
@@ -53,4 +56,37 @@ func readRawCPUTicks(statPath string) (*rawCPUticks, error) {
 	}
 
 	return &ticks, nil
+}
+
+func NewCPUCollector(statPath string) *CPUCollector{
+	return &CPUCollector{
+		statPath: statPath,
+	}
+}
+
+func (c *CPUCollector) Collect() (*CPUMetrics, error){
+	currentTicks, err := readRawCPUTicks(c.statPath)
+	if err != nil {
+		return nil, err
+	}
+
+	if c.prevTicks == nil {
+		c.prevTicks = currentTicks
+		return &CPUMetrics{}, nil
+	}
+
+	deltaTotal := currentTicks.Total() - c.prevTicks.Total()
+	deltaIdle := currentTicks.Idle() - c.prevTicks.Idle()
+	deltaIowait := currentTicks.iowait - c.prevTicks.iowait
+
+	c.prevTicks = currentTicks
+
+	if deltaTotal == 0 {
+		return &CPUMetrics{}, nil
+	}
+
+	cpuPercent := (1.0 - (float64(deltaIdle) / float64(deltaTotal))) * 100.00
+	ioWaitPercent := (float64(deltaIowait) / float64(deltaTotal)) * 100.00
+
+	return &CPUMetrics{CPUPercent: cpuPercent, IOWaitPercent: ioWaitPercent}, nil
 }
