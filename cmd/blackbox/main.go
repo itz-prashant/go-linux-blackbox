@@ -9,14 +9,29 @@ import (
 
 func main() {
 	cpuCollector := collector.NewCPUCollector("/proc/stat")
+	memCollector := collector.NewMemoryCollector("/proc/meminfo")
 
 	for {
-		metrics, err := cpuCollector.Collect()
+		cpuMetrics, err := cpuCollector.Collect()
 
 		if err != nil {
-			fmt.Println(err)
+			fmt.Printf("CPU Error: %v\n", err)
 		}
-		fmt.Printf("[HEALTH] CPU: %.2f%% | IOwait: %.2f%%\n", metrics.CPUPercent, metrics.IOWaitPercent)
+
+		memMetrics, err := memCollector.Collect()
+
+		if err != nil {
+			fmt.Printf("Mem Error: %v\n", err)
+		}
+
+		totalMB := memMetrics.MemTotal / (1024 * 1024)
+		availMB := memMetrics.MemAvailable / (1024 * 1024)
+		freeMB := memMetrics.MemFree / (1024 * 1024)
+
+		// fmt.Printf("[HEALTH] CPU: %.2f%% | IOwait: %.2f%%\n", cpuMetrics.CPUPercent, cpuMetrics.IOWaitPercent)
+
+		fmt.Printf("[HEALTH] CPU: %5.2f%% | IOwait: %5.2f%% |  RAM: %dMB Avail / %dMB Total (Free: %dMB)\n",
+			cpuMetrics.CPUPercent, cpuMetrics.IOWaitPercent, availMB, totalMB, freeMB)
 
 		time.Sleep(2 * time.Second)
 	}
