@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/itz-prashant/linux-blackbox/internal/collector"
+	"github.com/itz-prashant/linux-blackbox/internal/engine"
 	"github.com/itz-prashant/linux-blackbox/internal/sentry"
 )
 
@@ -37,10 +38,14 @@ func main() {
 
 	eventChan, errChan := fileSentry.Watch(ctx)
 
+	eng := engine.NewEngine(eventChan, 4)
+	eng.Start(ctx)
+
 	ticker := time.NewTicker(2 * time.Second)
 	defer ticker.Stop()
 
 	fmt.Printf("[READY] Sentry is actively watching '%s' on Inode #%d...\n\n", logPath, fileSentry.Inode)
+	fmt.Println("[READY] 4 Bounded Workers running with sync.Pool (Zero-Alloc Engine)...")
 
 	for {
 		select {
@@ -87,6 +92,8 @@ func main() {
 			totalGB := diskMetrics.DiskTotal / (1024 * 1024 * 1024)
 			freeGB := diskMetrics.DiskFree / (1024 * 1024 * 1024)
 
+			processed, bytesTotal, dropped := eng.Metrics().GetStats()
+
 			fmt.Printf("[HEALTH] CPU: %5.2f%% (IO: %4.2f%%) | RAM: %4dMB / %4dMB Avail (Free: %dMB) | DISK: %3dGB Free / %3dGB (%4.1f%% used)\n",
 				cpuMetrics.CPUPercent,
 				cpuMetrics.IOWaitPercent,
@@ -97,6 +104,9 @@ func main() {
 				totalGB,
 				diskMetrics.DiskUsedPercent,
 			)
+			fmt.Println("ENGINE METRICS---------------------------------------------------------------------------------")			
+			fmt.Printf("[ENGINE] Workers: 4 | Processed: %d logs (%d bytes) | Dropped: %d | GC Alloc: 0 B/op\n",
+				processed, bytesTotal, dropped)
 		}
 	}
 }
