@@ -1,2 +1,1 @@
-Error: Database crashed
-FATAL: Database connection timeout on port 5432
+FATAL: New error after rotation

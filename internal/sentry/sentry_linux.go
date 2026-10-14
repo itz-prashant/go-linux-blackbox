@@ -163,9 +163,41 @@ func (s *Sentry) Watch(ctx context.Context) (<-chan LogEvent, <-chan error) {
 			// CASE 2: Logrotate Hua (File Rename ya Delete hui!)
 			if mask&(syscall.IN_MOVE_SELF|syscall.IN_DELETE_SELF) != 0 {
 				fmt.Printf("[SENTRY] Logrotate detected! File on Inode #%d was moved/deleted.\n", s.Inode)
+				if err := s.reopen(); err != nil {
+					errChan <- fmt.Errorf("reopen failed: %w", err)
+				}
 			}
 		}
 	}()
 
 	return eventsChan, errChan
+}
+
+func (s *Sentry) reopen() error {
+	_, _ = syscall.InotifyRmWatch(s.InotifyFd, uint32(s.watchFd))
+
+	var newInode uint64
+	var err error
+
+	for attempts := 0; attempts < 10; attempts++ {
+		time.Sleep(100 * time.Millisecond)
+		newInode, err = GetInode(s.Path)
+		if err == nil && newInode != s.Inode {
+			break
+		}
+	}
+	if err != nil {
+		return fmt.Errorf("failed to find new file after rotation: %w", err)
+	}
+
+	flags := uint32(syscall.IN_MODIFY | syscall.IN_MOVE_SELF | syscall.IN_DELETE_SELF)
+	newWatchFd, err := syscall.InotifyAddWatch(s.InotifyFd, s.Path, flags)
+	if err != nil {
+		return fmt.Errorf("failed to watch new rotated file: %w", err)
+	}
+	s.watchFd = newWatchFd
+	s.Inode = newInode
+	s.Offset = 0
+	fmt.Printf("\n[SENTRY RECOVERY] Successfully switched to NEW Inode #%d!\n\n", s.Inode)
+	return nil
 }
