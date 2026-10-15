@@ -1,3 +1,9 @@
 FATAL: New error after rotation
 Error 1
 Error 2
+FATAL: Connection pool exhausted
+FATAL: Connection pool exhausted
+FATAL: Connection pool exhausted
+FATAL: Connection pool exhausted
+FATAL: Connection pool exhausted
+ERROR: Redis cache miss

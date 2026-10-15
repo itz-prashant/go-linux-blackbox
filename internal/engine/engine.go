@@ -6,21 +6,24 @@ import (
 	"sync"
 
 	"github.com/itz-prashant/linux-blackbox/internal/sentry"
+	"github.com/itz-prashant/linux-blackbox/internal/tape"
 )
 
 type Engine struct {
 	inchan      <-chan sentry.LogEvent
 	pool        *BufferPool
 	metrics     *EngineMetrics
+	folder      *tape.EventFolder
 	workerCount int
 	wg          sync.WaitGroup
 }
 
-func NewEngine(inchan <-chan sentry.LogEvent, workerCount int) *Engine {
+func NewEngine(inchan <-chan sentry.LogEvent, workerCount int, folder *tape.EventFolder) *Engine {
 	return &Engine{
 		inchan:      inchan,
 		pool:        NewBufferPool(),
 		metrics:     &EngineMetrics{},
+		folder:      folder,
 		workerCount: workerCount,
 	}
 }
@@ -67,6 +70,10 @@ func (e *Engine) process(event sentry.LogEvent, workerID int) {
 	// 4. Atomic counters
 	e.metrics.IncrementProcessed()
 	e.metrics.AddBytes(uint64(buf.Len()))
+
+	if e.folder != nil {
+		e.folder.Feed(event.Line, event.Timestamp)
+	}
 	// 5. Buffer wapas pool mein
 	e.pool.Put(buf)
 }
@@ -74,6 +81,10 @@ func (e *Engine) process(event sentry.LogEvent, workerID int) {
 // Wait program band hote waqt sabhi workers ka kaam khatam hone ka intezaar karta hai
 func (e *Engine) Wait() {
 	e.wg.Wait()
+	// Shutdown par pending folded logs ko tape mein flush karo:
+	if e.folder != nil {
+		e.folder.Flush()
+	}
 }
 
 // Metrics engine ke current atomic stats return karta hai
