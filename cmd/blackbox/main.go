@@ -111,12 +111,22 @@ func main() {
 			nowUnix := time.Now().Unix()
 			columnarTable.Append(nowUnix, cpuMetrics.CPUPercent, memMetrics.MemAvailable)
 
+			isAnomaly, zScore := columnarTable.DetectAnomaly(cpuMetrics.CPUPercent, 3.0)
+
 			// M5 ClickHouse Speed Analytics:
 			avgCPU := columnarTable.AvgCPU()
 			maxCPU := columnarTable.MaxCPU()
 
 			// Engine Atomic Stats (M3)
 			processed, bytesTotal, dropped := eng.Metrics().GetStats()
+
+			if isAnomaly {
+				fmt.Println("\n!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!")
+				fmt.Printf("[🚨 ALARM: ANOMALY SPIKE DETECTED] Z-Score: %.2f (Threshold > 3.0)!\n", zScore)
+				fmt.Printf("   Current CPU: %.2f%% | Baseline Avg: %.2f%% | Standard Dev: %.4f\n",
+					cpuMetrics.CPUPercent, avgCPU, columnarTable.StdDevCpu())
+				fmt.Println("!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!")
+			}
 
 			// Unified Systems Dashboard:
 			fmt.Printf("[HEALTH] CPU: %5.2f%% | RAM: %4dMB Avail | DISK: %3dGB Free\n",
