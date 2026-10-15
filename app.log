@@ -7,3 +7,4 @@ FATAL: Connection pool exhausted
 FATAL: Connection pool exhausted
 FATAL: Connection pool exhausted
 ERROR: Redis cache miss
+FATAL: Database crashed
